@@ -1,0 +1,210 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: |
+        if find . -name "*_test.go" -not -path "./.git/*" | grep -q .; then
+          go test -v -race -coverprofile=coverage.out ./...
+        else
+          echo "No test files found, skipping tests"
+          touch coverage.out
+        fi
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v4
+      with:
+        version: latest
+        args: --timeout=5m
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec.sarif ./...'
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: gosec.sarif
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for git describe
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        # Get build metadata
+        VERSION=$(git describe --tags --always --dirty)
+        COMMIT=$(git rev-parse --short HEAD)
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        
+        # Set output name
+        OUTPUT_NAME="ssh-plex"
+        if [ "$GOOS" = "windows" ]; then
+          OUTPUT_NAME="ssh-plex.exe"
+        fi
+        
+        # Build with static linking
+        go build \
+          -ldflags "-s -w -X main.version=$VERSION -X main.buildTime=$BUILD_TIME -X main.commit=$COMMIT -extldflags '-static'" \
+          -o "dist/ssh-plex-$GOOS-$GOARCH/$OUTPUT_NAME" \
+          ./cmd/ssh-plex
+
+    - name: Verify static linking (Linux only)
+      if: matrix.goos == 'linux'
+      run: |
+        if ldd "dist/ssh-plex-${{ matrix.goos }}-${{ matrix.goarch }}/ssh-plex" 2>&1 | grep -q "not a dynamic executable"; then
+          echo "✓ Binary is statically linked"
+        else
+          echo "✗ Binary has dynamic dependencies:"
+          ldd "dist/ssh-plex-${{ matrix.goos }}-${{ matrix.goarch }}/ssh-plex"
+          exit 1
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ssh-plex-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: dist/ssh-plex-${{ matrix.goos }}-${{ matrix.goarch }}/
+        retention-days: 30
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist/
+
+    - name: Create release packages
+      run: |
+        cd dist
+        for dir in ssh-plex-*/; do
+          platform=$(basename "$dir")
+          echo "Packaging $platform..."
+          
+          if [[ "$platform" == *"windows"* ]]; then
+            cd "$dir" && zip -r "../$platform.zip" . && cd ..
+          else
+            tar -czf "$platform.tar.gz" -C "$dir" .
+          fi
+        done
+
+    - name: Upload release assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cd dist
+        for file in *.zip *.tar.gz; do
+          if [ -f "$file" ]; then
+            echo "Uploading $file..."
+            gh release upload ${{ github.event.release.tag_name }} "$file"
+          fi
+        done

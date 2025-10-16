@@ -1,0 +1,22 @@
+# ssh-plex Host File Example
+# One host specification per line
+# Lines starting with # are comments and will be ignored
+
+# Basic host specifications
+user@server1.example.com
+user@server2.example.com:2222
+admin@192.168.1.10
+
+# Hosts with custom SSH keys
+deploy@prod-server1.example.com?key=/path/to/prod-key.pem
+deploy@prod-server2.example.com:2222?key=/path/to/prod-key.pem
+
+# IPv6 hosts
+user@[2001:db8::1]:22
+admin@[2001:db8::2]?key=/path/to/ipv6-key.pem
+
+# Mixed environments
+webserver@web1.internal
+webserver@web2.internal:2222
+dbadmin@db1.internal?key=/path/to/db-key.pem
+monitoring@monitor.internal:9022

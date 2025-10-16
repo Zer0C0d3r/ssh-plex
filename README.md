@@ -1,28 +1,28 @@
 # ssh-plex
 
+A high-reliability, production-grade CLI tool that enables parallel, fault-tolerant execution of shell commands across multiple remote hosts via SSH. Built for DevOps engineers, SREs, and system administrators who need to manage infrastructure at scale.
+
 [![CI/CD Pipeline](https://github.com/Zer0C0d3r/ssh-plex/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/Zer0C0d3r/ssh-plex/actions)
 [![CodeQL](https://github.com/Zer0C0d3r/ssh-plex/workflows/CodeQL%20Security%20Analysis/badge.svg)](https://github.com/Zer0C0d3r/ssh-plex/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Zer0C0d3r/ssh-plex)](https://goreportcard.com/report/github.com/Zer0C0d3r/ssh-plex)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Release](https://img.shields.io/github/release/Zer0C0d3r/ssh-plex.svg)](https://github.com/Zer0C0d3r/ssh-plex/releases/latest)
 
-A high-reliability, production-grade CLI tool that enables parallel, fault-tolerant execution of shell commands across multiple remote hosts via SSH. Built for DevOps engineers, SREs, and system administrators who need to manage infrastructure at scale.
+## Features
 
-## ✨ Features
+- **Parallel Execution**: Execute commands across hundreds of hosts simultaneously with configurable concurrency
+- **Smart Retry Logic**: Automatic retry with exponential backoff for transient failures
+- **Multiple Output Formats**: Streamed, buffered, and JSON output modes for different use cases
+- **High Performance**: Static binary with minimal resource footprint
+- **Production Ready**: Comprehensive error handling, logging, and observability
+- **Flexible Configuration**: Command-line flags, environment variables, and configuration files
+- **Rich Logging**: Structured logging with configurable levels and formats
+- **Dynamic Targeting**: Support for host files, command-line lists, and stdin input
+- **SSH Authentication**: Support for SSH agent, custom SSH keys, and default key authentication
+- **Timeout Controls**: Per-command and total execution timeouts
+- **Dry Run Mode**: Preview execution plans without making changes
 
-- **🚀 Parallel Execution**: Execute commands across hundreds of hosts simultaneously with configurable concurrency
-- **🔄 Smart Retry Logic**: Automatic retry with exponential backoff for transient failures
-- **📊 Multiple Output Formats**: Streamed, buffered, and JSON output modes for different use cases
-- **⚡ High Performance**: Static binary with minimal resource footprint
-- **🛡️ Production Ready**: Comprehensive error handling, logging, and observability
-- **🔧 Flexible Configuration**: Command-line flags, environment variables, and configuration files
-- **📝 Rich Logging**: Structured logging with configurable levels and formats
-- **🎯 Dynamic Targeting**: Support for host files, command-line lists, and stdin input
-- **🔐 SSH Authentication**: Support for SSH agent, custom SSH keys, and default key authentication
-- **⏱️ Timeout Controls**: Per-command and total execution timeouts
-- **🏃 Dry Run Mode**: Preview execution plans without making changes
-
-## 📦 Installation
+## Installation
 
 ### Pre-built Binaries
 
@@ -58,7 +58,7 @@ make build
 go install github.com/Zer0C0d3r/ssh-plex/cmd/ssh-plex@latest
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Usage
 
@@ -97,7 +97,7 @@ ssh-plex --hosts "user@host1?key=/path/to/key.pem,user@host2:2222" \
          -- "tail -n 100 /var/log/app.log"
 ```
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Command Syntax
 
@@ -169,7 +169,7 @@ log-format: "text"
 quiet: false
 ```
 
-## 🔧 Command Reference
+## Command Reference
 
 ### Global Flags
 
@@ -265,14 +265,14 @@ Machine-readable output for automation:
 }
 ```
 
-## ⚠️ Current Limitations
+## Current Limitations
 
 - **Configuration Files**: Only YAML format supported (JSON/TOML planned for v1.1)
 - **Config Locations**: Only system (`/etc/ssh-plex/`) and user (`~/.config/ssh-plex/`) directories
 - **Host Parameters**: Only `key=path` parameter supported in host specifications
 - **Authentication**: No password authentication (SSH keys and agent only)
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -365,7 +365,7 @@ ssh-plex --log-level info --log-format text --hosts "..." -- "command"
 ssh-plex --log-level info --log-format json --hosts "..." -- "command"
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 ### Version 1.1.0
 - [ ] **Enhanced Configuration**
@@ -410,17 +410,17 @@ ssh-plex --log-level info --log-format json --hosts "..." -- "command"
   - Dependency management
   - Rollback capabilities
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions from the community! Here's how you can help:
 
 ### Ways to Contribute
 
-- 🐛 **Report Bugs**: Open an issue with detailed reproduction steps
-- 💡 **Suggest Features**: Share your ideas for new functionality
-- 📝 **Improve Documentation**: Help make our docs clearer and more comprehensive
-- 🔧 **Submit Code**: Fix bugs or implement new features
-- 🧪 **Testing**: Help test new releases and report issues
+- **Report Bugs**: Open an issue with detailed reproduction steps
+- **Suggest Features**: Share your ideas for new functionality
+- **Improve Documentation**: Help make our docs clearer and more comprehensive
+- **Submit Code**: Fix bugs or implement new features
+- **Testing**: Help test new releases and report issues
 
 ### Development Setup
 
@@ -460,21 +460,21 @@ make lint
 
 ### Getting Help
 
-- 💬 **Discussions**: Use GitHub Discussions for questions and ideas
-- 🐛 **Issues**: Report bugs and request features via GitHub Issues
-- 📧 **Email**: Contact maintainers at [odin.coder77@proton.me]
+- **Discussions**: Use GitHub Discussions for questions and ideas
+- **Issues**: Report bugs and request features via GitHub Issues
+- **Email**: Contact maintainers at [odin.coder77@proton.me]
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📊 Statistics
+## Statistics
 
 - **Language**: Go
 - **Platforms**: Linux, macOS, Windows
 - **Architectures**: amd64, arm64
 - **Dependencies**: Minimal (only essential Go modules)
-- **Binary Size**: ~8MB (statically linked)
+- **Binary Size**: ~4MB (statically linked)
 
 ---
 

@@ -168,6 +168,14 @@ func (l *Logger) LogRetry(target target.Target, attempt int, backoff time.Durati
 	)
 }
 
+// LogConnectionWarning logs security warnings for connections
+func (l *Logger) LogConnectionWarning(hostname string, message string) {
+	l.logger.Warn("connection security warning",
+		"host", hostname,
+		"warning", message,
+	)
+}
+
 // LogExecutorStart logs the start of executor operations
 func (l *Logger) LogExecutorStart(targetCount int, concurrency int, retries int) {
 	l.Info("executor started",

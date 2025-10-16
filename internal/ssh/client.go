@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"ssh-plex/internal/logging"
 	"ssh-plex/internal/target"
@@ -267,7 +268,7 @@ func (c *SSHClient) Close() error {
 func (c *SSHClient) buildSSHConfig(target target.Target) (*ssh.ClientConfig, error) {
 	config := &ssh.ClientConfig{
 		User:            target.User,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Implement proper host key verification
+		HostKeyCallback: c.getHostKeyCallback(),
 		Timeout:         30 * time.Second,
 	}
 
@@ -327,4 +328,32 @@ func (c *SSHClient) getKeyAuth(keyPath string) (ssh.AuthMethod, error) {
 	}
 
 	return ssh.PublicKeys(signer), nil
+}
+
+// getHostKeyCallback returns a secure host key callback that tries known_hosts first,
+// then falls back to a warning-based insecure callback for development/testing
+func (c *SSHClient) getHostKeyCallback() ssh.HostKeyCallback {
+	// Try to use known_hosts file for secure host key verification
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		knownHostsFile := homeDir + "/.ssh/known_hosts"
+		if _, err := os.Stat(knownHostsFile); err == nil {
+			if hostKeyCallback, err := knownhosts.New(knownHostsFile); err == nil {
+				return hostKeyCallback
+			}
+		}
+	}
+
+	// Fallback to system known_hosts
+	if hostKeyCallback, err := knownhosts.New("/etc/ssh/ssh_known_hosts"); err == nil {
+		return hostKeyCallback
+	}
+
+	// Final fallback: insecure callback with warning
+	// This is acceptable for tools that need to work across many unknown hosts
+	return ssh.HostKeyCallback(func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		if c.logger != nil {
+			c.logger.LogConnectionWarning(hostname, "Host key verification disabled - not recommended for production")
+		}
+		return nil
+	})
 }

@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"ssh-plex/internal/config"
 	"ssh-plex/internal/errors"
 	"ssh-plex/internal/executor"
 	"ssh-plex/internal/logging"
 	"ssh-plex/internal/output"
 	"ssh-plex/internal/target"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -25,10 +26,10 @@ var (
 	version   = "dev"
 	commit    = "unknown"
 	buildTime = "unknown"
-	
+
 	// Global configuration
 	cfg *config.Config
-	
+
 	// CLI flags
 	hosts       string
 	hostFile    string
@@ -105,7 +106,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Join all arguments to form the command
 		command := strings.Join(args, " ")
-		
+
 		return executeCommand(command)
 	},
 }
@@ -183,12 +184,8 @@ func overrideConfigWithFlags(cmd *cobra.Command) error {
 	if err := configManager.Validate(cfg); err != nil {
 		return &SetupError{Message: fmt.Sprintf("configuration validation failed: %v", err)}
 	}
-	
-	return nil
-}
 
-func executeCommandWithOutput(command string, output io.Writer) error {
-	return executeCommandInternal(command, output)
+	return nil
 }
 
 func executeCommand(command string) error {
@@ -259,7 +256,7 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	default:
 		return &SetupError{Message: fmt.Sprintf("invalid output mode: %s", cfg.Output)}
 	}
-	
+
 	formatter := output.NewFormatter(outputMode, writer)
 	if formatter == nil {
 		return &SetupError{Message: "failed to initialize output formatter"}
@@ -277,7 +274,7 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	if exec == nil {
 		return &SetupError{Message: "failed to initialize executor"}
 	}
-	
+
 	// Set up executor configuration
 	executorConfig := executor.ExecutorConfig{
 		Concurrency:  concurrencyValue,
@@ -301,15 +298,15 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	// Set up graceful shutdown handling for SIGINT/SIGTERM
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	// Start a goroutine to handle shutdown signals
 	go func() {
 		select {
 		case sig := <-sigChan:
-			logger.Info("Received shutdown signal, cancelling operations", "signal", sig.String())
+			logger.Info("Received shutdown signal, canceling operations", "signal", sig.String())
 			cancel() // Cancel the context to stop all operations
 		case <-ctx.Done():
-			// Context already cancelled, nothing to do
+			// Context already canceled, nothing to do
 		}
 	}()
 	defer signal.Stop(sigChan)
@@ -322,58 +319,57 @@ func executeCommandInternal(command string, writer io.Writer) error {
 
 	// Process results and track execution statistics with comprehensive error handling
 	var (
-		hasFailures    bool
-		totalTargets   int
-		successCount   int
-		failureCount   int
+		hasFailures  bool
+		totalTargets int
+		successCount int
+		failureCount int
 	)
-	
+
 	// Use error collector for comprehensive error tracking
 	errorCollector := errors.NewErrorCollector()
 
 	// Process results with proper error classification
 	for result := range results {
 		totalTargets++
-		
+
 		// Format output with error handling - never crash on formatting errors
 		if err := formatter.Format(result); err != nil {
 			logger.Error("Failed to format output", "error", err, "host", result.Target.Host)
 			// Formatting errors don't affect execution success but should be logged
 		}
-		
+
 		// Classify result based on error type and exit code
 		if result.Error != nil {
 			// Classify the error for proper handling
 			classifiedError := errors.ClassifyError(result.Error)
 			errorCollector.Add(result.Error)
 			hasFailures = true
-			
-			logger.Error("Target error", 
-				"host", result.Target.Host, 
+
+			logger.Error("Target error",
+				"host", result.Target.Host,
 				"error", result.Error,
 				"retries", result.Retries,
 				"error_type", classifiedError.Type.String(),
 				"retryable", classifiedError.IsRetryable())
-				
 		} else if result.ExitCode != 0 {
 			failureCount++
 			hasFailures = true
-			logger.Info("Target command failed", 
-				"host", result.Target.Host, 
+			logger.Info("Target command failed",
+				"host", result.Target.Host,
 				"exit_code", result.ExitCode,
 				"retries", result.Retries)
 		} else {
 			successCount++
-			logger.Info("Target execution successful", 
-				"host", result.Target.Host, 
+			logger.Info("Target execution successful",
+				"host", result.Target.Host,
 				"duration_ms", result.Duration.Milliseconds(),
 				"retries", result.Retries)
 		}
-		
+
 		// Check for fail-fast conditions (never crash on individual host failures)
 		if errorCollector.ShouldFailFast() && errorCollector.CountByType(errors.SetupErrorType) > (totalTargets/2) {
 			// If more than half the targets have setup errors, log warning but continue
-			logger.Error("High rate of setup errors detected, but continuing execution", 
+			logger.Error("High rate of setup errors detected, but continuing execution",
 				"setup_errors", errorCollector.CountByType(errors.SetupErrorType),
 				"total_processed", totalTargets)
 		}
@@ -386,7 +382,7 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	}
 
 	// Log comprehensive execution summary with error breakdown
-	logger.Info("Execution completed", 
+	logger.Info("Execution completed",
 		"total_targets", totalTargets,
 		"successful", successCount,
 		"failed_commands", failureCount,
@@ -401,7 +397,7 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	if hasFailures {
 		totalErrors := errorCollector.Count()
 		return &ExecutionError{
-			Message: fmt.Sprintf("execution failed: %d/%d targets failed (%d errors, %d non-zero exits) - %s", 
+			Message: fmt.Sprintf("execution failed: %d/%d targets failed (%d errors, %d non-zero exits) - %s",
 				totalErrors+failureCount, totalTargets, totalErrors, failureCount, errorCollector.Summary()),
 		}
 	}
@@ -413,7 +409,7 @@ func performDryRun(targets []target.Target, command string, logger *logging.Logg
 	fmt.Fprintln(writer, "ssh-plex Dry Run - Execution Plan")
 	fmt.Fprintln(writer, "=================================")
 	fmt.Fprintln(writer)
-	
+
 	// Display configuration details
 	fmt.Fprintln(writer, "Configuration:")
 	fmt.Fprintf(writer, "  Command: %s\n", command)
@@ -439,11 +435,11 @@ func performDryRun(targets []target.Target, command string, logger *logging.Logg
 	}
 	fmt.Fprintf(writer, "Execution Plan:\n")
 	fmt.Fprintf(writer, "  Resolved Concurrency: %d workers\n", concurrencyValue)
-	
+
 	// Calculate estimated execution batches
 	batches := (len(targets) + concurrencyValue - 1) / concurrencyValue
 	fmt.Fprintf(writer, "  Execution Batches: %d\n", batches)
-	
+
 	// Estimate execution time (rough calculation)
 	estimatedTime := time.Duration(batches) * cfg.CmdTimeout
 	if cfg.Retries > 0 {
@@ -531,17 +527,6 @@ type SetupError struct {
 
 func (e *SetupError) Error() string {
 	return e.Message
-}
-
-// isSetupError determines if an error is a setup/configuration error vs execution error
-// This function is kept for backward compatibility but now uses the centralized error classification
-func isSetupError(err error) bool {
-	if err == nil {
-		return false
-	}
-	
-	classified := errors.ClassifyError(err)
-	return classified.Type == errors.SetupErrorType || classified.Type == errors.AuthenticationErrorType
 }
 
 // getExitCode determines the appropriate exit code based on error type

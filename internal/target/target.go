@@ -1,3 +1,4 @@
+// Package target provides host specification parsing and validation for ssh-plex.
 package target
 
 import (
@@ -25,13 +26,13 @@ type Target struct {
 type Parser interface {
 	// ParseHosts parses comma-separated host specifications
 	ParseHosts(input string) ([]Target, error)
-	
+
 	// ParseHostFile reads host specifications from a file (one per line)
 	ParseHostFile(filename string) ([]Target, error)
-	
+
 	// ParseStdin reads host specifications from stdin
 	ParseStdin() ([]Target, error)
-	
+
 	// ValidateTarget validates a target for security and correctness
 	ValidateTarget(target Target) error
 }
@@ -67,7 +68,7 @@ func ParseHostSpec(spec string) (Target, error) {
 		if err != nil {
 			return target, fmt.Errorf("invalid query parameters: %w", err)
 		}
-		
+
 		if key := values.Get("key"); key != "" {
 			target.IdentityFile = key
 		}
@@ -86,7 +87,7 @@ func ParseHostSpec(spec string) (Target, error) {
 	// Parse host:port
 	var host string
 	var portStr string
-	
+
 	// Handle IPv6 addresses in brackets
 	if strings.HasPrefix(userHost, "[") {
 		// IPv6 format: [::1]:2222
@@ -94,10 +95,10 @@ func ParseHostSpec(spec string) (Target, error) {
 		if closeBracket == -1 {
 			return target, fmt.Errorf("invalid IPv6 address format: missing closing bracket")
 		}
-		
+
 		host = userHost[1:closeBracket] // Remove brackets
 		remainder := userHost[closeBracket+1:]
-		
+
 		if strings.HasPrefix(remainder, ":") {
 			portStr = remainder[1:]
 		}
@@ -227,7 +228,7 @@ func (p *DefaultParser) parseFromReader(reader io.Reader) ([]Target, error) {
 	for scanner.Scan() {
 		lineNum++
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

@@ -18,23 +18,23 @@ import (
 
 // Result represents the outcome of executing a command on a target host
 type Result struct {
-	Target    target.Target // The target host where command was executed
-	Stdout    string        // Standard output from the command
-	Stderr    string        // Standard error from the command
-	ExitCode  int           // Exit code returned by the command
-	Duration  time.Duration // Time taken to execute the command
-	Error     error         // Any error that occurred during execution
-	Retries   int           // Number of retry attempts made
+	Target   target.Target // The target host where command was executed
+	Stdout   string        // Standard output from the command
+	Stderr   string        // Standard error from the command
+	ExitCode int           // Exit code returned by the command
+	Duration time.Duration // Time taken to execute the command
+	Error    error         // Any error that occurred during execution
+	Retries  int           // Number of retry attempts made
 }
 
 // Client defines the interface for SSH operations
 type Client interface {
 	// Connect establishes an SSH connection to the target host
 	Connect(ctx context.Context, target target.Target) error
-	
+
 	// Execute runs a command on the connected host and returns the result
 	Execute(ctx context.Context, command string) (*Result, error)
-	
+
 	// Close terminates the SSH connection
 	Close() error
 }
@@ -63,7 +63,7 @@ func NewClientWithLogger(logger *logging.Logger) Client {
 func (c *SSHClient) Connect(ctx context.Context, target target.Target) error {
 	c.target = target
 	startTime := time.Now()
-	
+
 	// Add panic recovery to prevent crashes
 	defer func() {
 		if r := recover(); r != nil {
@@ -73,7 +73,7 @@ func (c *SSHClient) Connect(ctx context.Context, target target.Target) error {
 			}
 		}
 	}()
-	
+
 	// Build SSH client configuration with error handling
 	config, err := c.buildSSHConfig(target)
 	if err != nil {
@@ -83,15 +83,15 @@ func (c *SSHClient) Connect(ctx context.Context, target target.Target) error {
 		return fmt.Errorf("failed to build SSH config: %w", err)
 	}
 	c.config = config
-	
+
 	// Create address string
 	address := net.JoinHostPort(target.Host, strconv.Itoa(target.Port))
-	
+
 	// Create a dialer with timeout support
 	dialer := &net.Dialer{
 		Timeout: 30 * time.Second, // Connection timeout
 	}
-	
+
 	// Establish connection with context support
 	netConn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
@@ -100,7 +100,7 @@ func (c *SSHClient) Connect(ctx context.Context, target target.Target) error {
 		}
 		return fmt.Errorf("failed to connect to %s: %w", address, err)
 	}
-	
+
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, address, config)
 	if err != nil {
@@ -110,15 +110,15 @@ func (c *SSHClient) Connect(ctx context.Context, target target.Target) error {
 		}
 		return fmt.Errorf("SSH handshake failed for %s: %w", address, err)
 	}
-	
+
 	// Create SSH client
 	c.conn = ssh.NewClient(sshConn, chans, reqs)
-	
+
 	// Log successful connection
 	if c.logger != nil {
 		c.logger.LogConnection(target, time.Since(startTime), 0)
 	}
-	
+
 	return nil
 }
 
@@ -127,17 +127,17 @@ func (c *SSHClient) Execute(ctx context.Context, command string) (*Result, error
 	result := &Result{
 		Target: c.target,
 	}
-	
+
 	if c.conn == nil {
 		result.Error = fmt.Errorf("not connected to any host")
 		result.ExitCode = 255
 		return result, result.Error
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		result.Duration = time.Since(startTime)
-		
+
 		// Recover from any panics to prevent crashes
 		if r := recover(); r != nil {
 			result.Error = fmt.Errorf("SSH execution panic: %v", r)
@@ -147,7 +147,7 @@ func (c *SSHClient) Execute(ctx context.Context, command string) (*Result, error
 			}
 		}
 	}()
-	
+
 	// Create a new session with error handling
 	session, err := c.conn.NewSession()
 	if err != nil {
@@ -161,25 +161,25 @@ func (c *SSHClient) Execute(ctx context.Context, command string) (*Result, error
 			_ = session.Close()
 		}
 	}()
-	
+
 	// Set up stdout and stderr capture with proper buffering
 	var stdout, stderr bytes.Buffer
 	session.Stdout = &stdout
 	session.Stderr = &stderr
-	
+
 	// Execute command with proper timeout handling
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)
 		done <- session.Run(command)
 	}()
-	
+
 	select {
 	case err := <-done:
 		// Capture output regardless of error
 		result.Stdout = stdout.String()
 		result.Stderr = stderr.String()
-		
+
 		if err != nil {
 			// Check if it's an exit error to get the exit code
 			if exitErr, ok := err.(*ssh.ExitError); ok {
@@ -206,11 +206,11 @@ func (c *SSHClient) Execute(ctx context.Context, command string) (*Result, error
 				c.logger.LogExecution(c.target, command, result.ExitCode, result.Duration, 0)
 			}
 		}
-		
+
 		return result, nil
-		
+
 	case <-ctx.Done():
-		// Context cancelled (timeout or cancellation)
+		// Context canceled (timeout or cancellation)
 		// Try to terminate the session gracefully
 		if session != nil {
 			session.Signal(ssh.SIGTERM)
@@ -224,18 +224,18 @@ func (c *SSHClient) Execute(ctx context.Context, command string) (*Result, error
 			}
 			session.Close()
 		}
-		
+
 		// Capture any output that was generated before timeout
 		result.Stdout = stdout.String()
 		result.Stderr = stderr.String()
 		result.Error = fmt.Errorf("command execution timeout: %w", ctx.Err())
 		result.ExitCode = 124 // Standard timeout exit code
-		
+
 		// Log timeout error
 		if c.logger != nil {
 			c.logger.LogExecutionError(c.target, command, result.Error, 0)
 		}
-		
+
 		return result, result.Error
 	}
 }
@@ -250,7 +250,7 @@ func (c *SSHClient) Close() error {
 			}
 		}
 	}()
-	
+
 	if c.conn != nil {
 		err := c.conn.Close()
 		c.conn = nil
@@ -270,26 +270,26 @@ func (c *SSHClient) buildSSHConfig(target target.Target) (*ssh.ClientConfig, err
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Implement proper host key verification
 		Timeout:         30 * time.Second,
 	}
-	
+
 	// Set up authentication methods
 	authMethods, err := c.getAuthMethods(target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up authentication: %w", err)
 	}
 	config.Auth = authMethods
-	
+
 	return config, nil
 }
 
 // getAuthMethods returns available authentication methods in order of preference
 func (c *SSHClient) getAuthMethods(target target.Target) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
-	
+
 	// 1. Try SSH agent authentication first
 	if agentAuth := c.getAgentAuth(); agentAuth != nil {
 		authMethods = append(authMethods, agentAuth)
 	}
-	
+
 	// 2. Try identity file authentication if specified
 	if target.IdentityFile != "" {
 		keyAuth, err := c.getKeyAuth(target.IdentityFile)
@@ -298,11 +298,11 @@ func (c *SSHClient) getAuthMethods(target target.Target) ([]ssh.AuthMethod, erro
 		}
 		authMethods = append(authMethods, keyAuth)
 	}
-	
+
 	if len(authMethods) == 0 {
 		return nil, fmt.Errorf("no authentication methods available")
 	}
-	
+
 	return authMethods, nil
 }
 
@@ -320,11 +320,11 @@ func (c *SSHClient) getKeyAuth(keyPath string) (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read private key file: %w", err)
 	}
-	
+
 	signer, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
-	
+
 	return ssh.PublicKeys(signer), nil
 }

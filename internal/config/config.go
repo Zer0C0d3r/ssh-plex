@@ -1,3 +1,4 @@
+// Package config provides configuration management for ssh-plex.
 package config
 
 import (
@@ -13,27 +14,27 @@ import (
 
 // Config represents the application configuration structure
 type Config struct {
-	Hosts       string        `mapstructure:"hosts"`        // Comma-separated host specifications
-	HostFile    string        `mapstructure:"hostfile"`     // Path to file containing host specifications
-	Concurrency string        `mapstructure:"concurrency"`  // Concurrency limit ("auto" or number)
-	Retries     int           `mapstructure:"retries"`      // Maximum retry attempts per target
-	Timeout     time.Duration `mapstructure:"timeout"`      // Total execution timeout
-	CmdTimeout  time.Duration `mapstructure:"cmd-timeout"`  // Per-command timeout
-	Output      string        `mapstructure:"output"`       // Output format (streamed, buffered, json)
-	Quiet       bool          `mapstructure:"quiet"`        // Suppress non-error output
-	DryRun      bool          `mapstructure:"dry-run"`      // Show execution plan without connecting
-	LogLevel    string        `mapstructure:"log-level"`    // Log level (info, error)
-	LogFormat   string        `mapstructure:"log-format"`   // Log format (json, text)
+	Hosts       string        `mapstructure:"hosts"`       // Comma-separated host specifications
+	HostFile    string        `mapstructure:"hostfile"`    // Path to file containing host specifications
+	Concurrency string        `mapstructure:"concurrency"` // Concurrency limit ("auto" or number)
+	Retries     int           `mapstructure:"retries"`     // Maximum retry attempts per target
+	Timeout     time.Duration `mapstructure:"timeout"`     // Total execution timeout
+	CmdTimeout  time.Duration `mapstructure:"cmd-timeout"` // Per-command timeout
+	Output      string        `mapstructure:"output"`      // Output format (streamed, buffered, json)
+	Quiet       bool          `mapstructure:"quiet"`       // Suppress non-error output
+	DryRun      bool          `mapstructure:"dry-run"`     // Show execution plan without connecting
+	LogLevel    string        `mapstructure:"log-level"`   // Log level (info, error)
+	LogFormat   string        `mapstructure:"log-format"`  // Log format (json, text)
 }
 
 // Manager defines the interface for configuration management
 type Manager interface {
 	// Load reads configuration from all sources (files, env vars, CLI flags)
 	Load() (*Config, error)
-	
+
 	// SetDefaults establishes default configuration values
 	SetDefaults()
-	
+
 	// Validate ensures configuration values are valid and consistent
 	Validate(config *Config) error
 }
@@ -71,10 +72,10 @@ func (m *ViperManager) Load() (*Config, error) {
 	// Configure config file locations
 	m.v.SetConfigName("config")
 	m.v.SetConfigType("yaml")
-	
+
 	// Add config paths in reverse precedence order (system first, user second)
 	m.v.AddConfigPath("/etc/ssh-plex/")
-	
+
 	// Add user config path
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		userConfigDir := filepath.Join(homeDir, ".config", "ssh-plex")
@@ -173,7 +174,7 @@ func (m *ViperManager) BindFlags(flagSet interface{}) error {
 // This method demonstrates explicit environment variable handling
 func (m *ViperManager) LoadFromEnv() (*Config, error) {
 	m.SetDefaults()
-	
+
 	// Set up environment variable handling with SSH_PLEX_ prefix
 	m.v.SetEnvPrefix("SSH_PLEX")
 	m.v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -182,7 +183,7 @@ func (m *ViperManager) LoadFromEnv() (*Config, error) {
 	// Explicitly bind environment variables for better type conversion
 	envVars := map[string]string{
 		"hosts":       "SSH_PLEX_HOSTS",
-		"hostfile":    "SSH_PLEX_HOSTFILE", 
+		"hostfile":    "SSH_PLEX_HOSTFILE",
 		"concurrency": "SSH_PLEX_CONCURRENCY",
 		"retries":     "SSH_PLEX_RETRIES",
 		"timeout":     "SSH_PLEX_TIMEOUT",
@@ -247,7 +248,7 @@ func GetEnvVarNames() []string {
 	return []string{
 		"SSH_PLEX_HOSTS",
 		"SSH_PLEX_HOSTFILE",
-		"SSH_PLEX_CONCURRENCY", 
+		"SSH_PLEX_CONCURRENCY",
 		"SSH_PLEX_RETRIES",
 		"SSH_PLEX_TIMEOUT",
 		"SSH_PLEX_CMD_TIMEOUT",

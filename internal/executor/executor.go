@@ -29,20 +29,20 @@ func ParseConcurrency(concurrencyStr string) (int, error) {
 	if concurrencyStr == "" || concurrencyStr == "auto" {
 		return 0, nil // 0 indicates auto mode
 	}
-	
+
 	concurrency, err := strconv.Atoi(concurrencyStr)
 	if err != nil {
 		return 0, fmt.Errorf("invalid concurrency value '%s': must be a number or 'auto'", concurrencyStr)
 	}
-	
+
 	if concurrency < 1 {
 		return 0, fmt.Errorf("concurrency must be at least 1, got %d", concurrency)
 	}
-	
+
 	if concurrency > 1000 {
 		return 0, fmt.Errorf("concurrency too high: %d (maximum 1000)", concurrency)
 	}
-	
+
 	return concurrency, nil
 }
 
@@ -50,7 +50,7 @@ func ParseConcurrency(concurrencyStr string) (int, error) {
 type Executor interface {
 	// Execute runs a command on all targets and returns a channel of results
 	Execute(ctx context.Context, targets []target.Target, command string) <-chan *ssh.Result
-	
+
 	// SetConfig updates the executor configuration
 	SetConfig(config ExecutorConfig)
 }
@@ -64,14 +64,14 @@ type Job struct {
 
 // WorkerPool manages concurrent execution of SSH commands
 type WorkerPool struct {
-	config     ExecutorConfig
-	jobs       chan Job
-	results    chan *ssh.Result
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	mu         sync.RWMutex
-	logger     *logging.Logger
+	config  ExecutorConfig
+	jobs    chan Job
+	results chan *ssh.Result
+	wg      sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	mu      sync.RWMutex
+	logger  *logging.Logger
 }
 
 // NewExecutor creates a new executor with default configuration
@@ -115,34 +115,34 @@ func (wp *WorkerPool) Execute(ctx context.Context, targets []target.Target, comm
 
 	// Calculate actual concurrency
 	concurrency := calculateConcurrency(config.Concurrency, len(targets))
-	
+
 	// Log executor start
 	if logger != nil {
 		logger.LogExecutorStart(len(targets), concurrency, config.Retries)
 	}
-	
+
 	// Create context with total timeout if specified
 	execCtx := ctx
 	var timeoutCancel context.CancelFunc
 	if config.TotalTimeout > 0 {
 		execCtx, timeoutCancel = context.WithTimeout(ctx, config.TotalTimeout)
 	}
-	
+
 	// Initialize worker pool
 	wp.ctx, wp.cancel = context.WithCancel(execCtx)
 	wp.jobs = make(chan Job, len(targets))
 	wp.results = make(chan *ssh.Result, len(targets)*(config.Retries+1))
-	
+
 	// Start workers
 	for i := 0; i < concurrency; i++ {
 		wp.wg.Add(1)
 		go wp.worker(config)
 	}
-	
+
 	// Start result collector
 	resultsChan := make(chan *ssh.Result, len(targets))
 	go wp.collectResults(targets, resultsChan, timeoutCancel)
-	
+
 	// Queue initial jobs
 	for _, target := range targets {
 		select {
@@ -151,26 +151,26 @@ func (wp *WorkerPool) Execute(ctx context.Context, targets []target.Target, comm
 			break
 		}
 	}
-	
+
 	return resultsChan
 }
 
 // worker processes jobs from the job queue
 func (wp *WorkerPool) worker(config ExecutorConfig) {
 	defer wp.wg.Done()
-	
+
 	for {
 		select {
 		case job := <-wp.jobs:
 			result := wp.executeJob(job, config)
-			
+
 			// Send result
 			select {
 			case wp.results <- result:
 			case <-wp.ctx.Done():
 				return
 			}
-			
+
 		case <-wp.ctx.Done():
 			return
 		}
@@ -186,7 +186,7 @@ func (wp *WorkerPool) executeJob(job Job, config ExecutorConfig) *ssh.Result {
 		cmdCtx, cancel = context.WithTimeout(wp.ctx, config.CmdTimeout)
 		defer cancel()
 	}
-	
+
 	// Create SSH client with logger
 	var client ssh.Client
 	if wp.logger != nil {
@@ -195,7 +195,7 @@ func (wp *WorkerPool) executeJob(job Job, config ExecutorConfig) *ssh.Result {
 		client = ssh.NewClient()
 	}
 	defer client.Close()
-	
+
 	// Connect to target
 	if err := client.Connect(cmdCtx, job.Target); err != nil {
 		result := &ssh.Result{
@@ -204,15 +204,15 @@ func (wp *WorkerPool) executeJob(job Job, config ExecutorConfig) *ssh.Result {
 			ExitCode: 255,
 			Retries:  job.Attempt,
 		}
-		
+
 		// Check if we should retry
 		if job.Attempt < config.Retries && wp.shouldRetryResult(result) {
 			wp.scheduleRetry(job, config)
 		}
-		
+
 		return result
 	}
-	
+
 	// Execute command
 	result, err := client.Execute(cmdCtx, job.Command)
 	if result == nil {
@@ -225,12 +225,12 @@ func (wp *WorkerPool) executeJob(job Job, config ExecutorConfig) *ssh.Result {
 	} else {
 		result.Retries = job.Attempt
 	}
-	
+
 	// Check if we should retry based on result
 	if job.Attempt < config.Retries && wp.shouldRetryResult(result) {
 		wp.scheduleRetry(job, config)
 	}
-	
+
 	return result
 }
 
@@ -239,9 +239,9 @@ func (wp *WorkerPool) shouldRetry(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	errStr := strings.ToLower(err.Error())
-	
+
 	// Network timeouts
 	if strings.Contains(errStr, "timeout") ||
 		strings.Contains(errStr, "connection refused") ||
@@ -249,7 +249,7 @@ func (wp *WorkerPool) shouldRetry(err error) bool {
 		strings.Contains(errStr, "network unreachable") {
 		return true
 	}
-	
+
 	// SSH handshake failures
 	if strings.Contains(errStr, "handshake failed") ||
 		strings.Contains(errStr, "ssh handshake failed") ||
@@ -258,12 +258,12 @@ func (wp *WorkerPool) shouldRetry(err error) bool {
 		strings.Contains(errStr, "connection lost") {
 		return true
 	}
-	
+
 	// Check for net.Error timeout
 	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -273,12 +273,12 @@ func (wp *WorkerPool) shouldRetryResult(result *ssh.Result) bool {
 	if result.Error == nil {
 		return false
 	}
-	
+
 	// Exit code 255 indicates SSH connection error - check if retryable
 	if result.ExitCode == 255 {
 		return wp.shouldRetry(result.Error)
 	}
-	
+
 	// For other cases, check if the error itself is retryable
 	return wp.shouldRetry(result.Error)
 }
@@ -286,13 +286,13 @@ func (wp *WorkerPool) shouldRetryResult(result *ssh.Result) bool {
 // scheduleRetry schedules a job for retry with exponential backoff
 func (wp *WorkerPool) scheduleRetry(job Job, config ExecutorConfig) {
 	backoff := calculateBackoff(job.Attempt + 1)
-	
+
 	// Log retry attempt
 	if wp.logger != nil {
 		reason := "connection error"
 		wp.logger.LogRetry(job.Target, job.Attempt+1, backoff, reason)
 	}
-	
+
 	go func() {
 		select {
 		case <-time.After(backoff):
@@ -301,12 +301,12 @@ func (wp *WorkerPool) scheduleRetry(job Job, config ExecutorConfig) {
 				Command: job.Command,
 				Attempt: job.Attempt + 1,
 			}
-			
+
 			select {
 			case wp.jobs <- retryJob:
 			case <-wp.ctx.Done():
 			}
-			
+
 		case <-wp.ctx.Done():
 		}
 	}()
@@ -334,28 +334,28 @@ func (wp *WorkerPool) collectResults(targets []target.Target, output chan<- *ssh
 			}
 			wp.logger.LogExecutorComplete(len(targets), successCount, failureCount, time.Since(startTime))
 		}
-		
+
 		close(output)
 		if timeoutCancel != nil {
 			timeoutCancel()
 		}
 	}()
-	
+
 	completed := make(map[string]bool)
 	expectedResults := len(targets)
-	
+
 	for {
 		select {
 		case result := <-wp.results:
 			targetKey := fmt.Sprintf("%s@%s:%d", result.Target.User, result.Target.Host, result.Target.Port)
-			
+
 			// Only send the final result for each target (no retries in progress)
 			if !completed[targetKey] {
 				// Check if this is a final result (success or max retries reached)
 				if result.Error == nil || result.Retries >= wp.config.Retries || !wp.shouldRetryResult(result) {
 					completed[targetKey] = true
 					output <- result
-					
+
 					if len(completed) >= expectedResults {
 						// All targets completed - shutdown gracefully
 						wp.shutdown()
@@ -363,7 +363,7 @@ func (wp *WorkerPool) collectResults(targets []target.Target, output chan<- *ssh
 					}
 				}
 			}
-			
+
 		case <-wp.ctx.Done():
 			// Timeout or cancellation - send timeout results for incomplete targets
 			wp.sendTimeoutResults(targets, completed, output)
@@ -402,7 +402,7 @@ func calculateConcurrency(configConcurrency int, targetCount int) int {
 	if configConcurrency < 0 {
 		return 1
 	}
-	
+
 	if configConcurrency == 0 {
 		// Auto mode: min(32, num_hosts)
 		if targetCount <= 0 {
@@ -413,17 +413,17 @@ func calculateConcurrency(configConcurrency int, targetCount int) int {
 		}
 		return 32
 	}
-	
+
 	// Apply upper bound of 1000, but still respect target count
 	effectiveConcurrency := configConcurrency
 	if effectiveConcurrency > 1000 {
 		effectiveConcurrency = 1000
 	}
-	
+
 	// Use configured concurrency, but don't exceed target count unless there are no targets
 	if targetCount > 0 && effectiveConcurrency > targetCount {
 		return targetCount
 	}
-	
+
 	return effectiveConcurrency
 }

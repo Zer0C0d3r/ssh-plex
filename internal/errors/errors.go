@@ -1,3 +1,4 @@
+// Package errors provides error classification and handling for ssh-plex.
 package errors
 
 import (
@@ -11,19 +12,19 @@ type ErrorType int
 const (
 	// SetupErrorType represents configuration, validation, or initialization errors
 	SetupErrorType ErrorType = iota
-	
+
 	// ConnectionErrorType represents network or SSH connection errors
 	ConnectionErrorType
-	
+
 	// AuthenticationErrorType represents SSH authentication failures
 	AuthenticationErrorType
-	
+
 	// ExecutionErrorType represents command execution errors
 	ExecutionErrorType
-	
+
 	// TimeoutErrorType represents timeout-related errors
 	TimeoutErrorType
-	
+
 	// UnknownErrorType represents unclassified errors
 	UnknownErrorType
 )
@@ -41,6 +42,8 @@ func (et ErrorType) String() string {
 		return "execution"
 	case TimeoutErrorType:
 		return "timeout"
+	case UnknownErrorType:
+		return "unknown"
 	default:
 		return "unknown"
 	}
@@ -48,9 +51,9 @@ func (et ErrorType) String() string {
 
 // ClassifiedError wraps an error with classification information
 type ClassifiedError struct {
-	Type     ErrorType
-	Original error
-	Message  string
+	Type      ErrorType
+	Original  error
+	Message   string
 	Retryable bool
 }
 
@@ -156,7 +159,7 @@ func isSetupError(errStr string) bool {
 	}
 
 	// Check for permission denied in file/config context (not SSH auth context)
-	if strings.Contains(errStr, "permission denied") && 
+	if strings.Contains(errStr, "permission denied") &&
 		(strings.Contains(errStr, "file") || strings.Contains(errStr, "config") || strings.Contains(errStr, "directory")) {
 		return true
 	}

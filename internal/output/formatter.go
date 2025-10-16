@@ -19,10 +19,10 @@ type OutputMode string
 const (
 	// StreamedMode outputs results in real-time with [host] prefixes
 	StreamedMode OutputMode = "streamed"
-	
+
 	// BufferedMode shows complete output per host after execution completion
 	BufferedMode OutputMode = "buffered"
-	
+
 	// JSONMode emits NDJSON objects with structured result data
 	JSONMode OutputMode = "json"
 )
@@ -31,10 +31,10 @@ const (
 type Formatter interface {
 	// Format processes and outputs a single result
 	Format(result *ssh.Result) error
-	
+
 	// Finalize performs any cleanup or final output operations
 	Finalize() error
-	
+
 	// SetMode configures the output formatting mode
 	SetMode(mode OutputMode)
 }
@@ -52,7 +52,7 @@ func NewFormatter(mode OutputMode, writer io.Writer) Formatter {
 	if writer == nil {
 		writer = os.Stdout
 	}
-	
+
 	return &DefaultFormatter{
 		mode:     mode,
 		writer:   writer,
@@ -71,7 +71,7 @@ func (f *DefaultFormatter) SetMode(mode OutputMode) {
 func (f *DefaultFormatter) Format(result *ssh.Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	
+
 	switch f.mode {
 	case StreamedMode:
 		return f.formatStreamed(result)
@@ -88,7 +88,7 @@ func (f *DefaultFormatter) Format(result *ssh.Result) error {
 func (f *DefaultFormatter) Finalize() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	
+
 	if f.mode == BufferedMode {
 		return f.flushBuffered()
 	}
@@ -98,7 +98,7 @@ func (f *DefaultFormatter) Finalize() error {
 // formatStreamed outputs results in real-time with [host] prefixes
 func (f *DefaultFormatter) formatStreamed(result *ssh.Result) error {
 	hostPrefix := fmt.Sprintf("[%s]", result.Target.Host)
-	
+
 	// Output stdout with host prefix
 	if result.Stdout != "" {
 		scanner := bufio.NewScanner(strings.NewReader(result.Stdout))
@@ -112,7 +112,7 @@ func (f *DefaultFormatter) formatStreamed(result *ssh.Result) error {
 			return fmt.Errorf("error reading stdout: %w", err)
 		}
 	}
-	
+
 	// Output stderr with host prefix
 	if result.Stderr != "" {
 		scanner := bufio.NewScanner(strings.NewReader(result.Stderr))
@@ -126,15 +126,15 @@ func (f *DefaultFormatter) formatStreamed(result *ssh.Result) error {
 			return fmt.Errorf("error reading stderr: %w", err)
 		}
 	}
-	
+
 	// Output error information if present
 	if result.Error != nil {
-		if _, err := fmt.Fprintf(f.writer, "%s ERROR: %s (exit code: %d)\n", 
+		if _, err := fmt.Fprintf(f.writer, "%s ERROR: %s (exit code: %d)\n",
 			hostPrefix, result.Error.Error(), result.ExitCode); err != nil {
 			return fmt.Errorf("failed to write error: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -152,23 +152,23 @@ func (f *DefaultFormatter) flushBuffered() error {
 		hosts = append(hosts, host)
 	}
 	sort.Strings(hosts)
-	
+
 	// Output results for each host
 	for i, host := range hosts {
 		result := f.buffered[host]
-		
+
 		// Add separator between hosts (except for the first one)
 		if i > 0 {
 			if _, err := fmt.Fprintln(f.writer, ""); err != nil {
 				return fmt.Errorf("failed to write separator: %w", err)
 			}
 		}
-		
+
 		// Host header
 		if _, err := fmt.Fprintf(f.writer, "=== %s ===\n", host); err != nil {
 			return fmt.Errorf("failed to write host header: %w", err)
 		}
-		
+
 		// Output stdout
 		if result.Stdout != "" {
 			if _, err := fmt.Fprint(f.writer, result.Stdout); err != nil {
@@ -181,7 +181,7 @@ func (f *DefaultFormatter) flushBuffered() error {
 				}
 			}
 		}
-		
+
 		// Output stderr
 		if result.Stderr != "" {
 			if _, err := fmt.Fprint(f.writer, result.Stderr); err != nil {
@@ -194,42 +194,42 @@ func (f *DefaultFormatter) flushBuffered() error {
 				}
 			}
 		}
-		
+
 		// Output error and exit code information
 		if result.Error != nil {
 			if _, err := fmt.Fprintf(f.writer, "ERROR: %s\n", result.Error.Error()); err != nil {
 				return fmt.Errorf("failed to write error: %w", err)
 			}
 		}
-		
-		if _, err := fmt.Fprintf(f.writer, "Exit code: %d, Duration: %v", 
+
+		if _, err := fmt.Fprintf(f.writer, "Exit code: %d, Duration: %v",
 			result.ExitCode, result.Duration); err != nil {
 			return fmt.Errorf("failed to write exit info: %w", err)
 		}
-		
+
 		if result.Retries > 0 {
 			if _, err := fmt.Fprintf(f.writer, ", Retries: %d", result.Retries); err != nil {
 				return fmt.Errorf("failed to write retry info: %w", err)
 			}
 		}
-		
+
 		if _, err := fmt.Fprintln(f.writer, ""); err != nil {
 			return fmt.Errorf("failed to write final newline: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
 // JSONOutput represents the JSON structure for NDJSON output
 type JSONOutput struct {
-	Host        string `json:"host"`
-	Stdout      string `json:"stdout"`
-	Stderr      string `json:"stderr"`
-	ExitCode    int    `json:"exit_code"`
-	DurationMs  int64  `json:"duration_ms"`
-	Retries     int    `json:"retries"`
-	Error       string `json:"error,omitempty"`
+	Host       string `json:"host"`
+	Stdout     string `json:"stdout"`
+	Stderr     string `json:"stderr"`
+	ExitCode   int    `json:"exit_code"`
+	DurationMs int64  `json:"duration_ms"`
+	Retries    int    `json:"retries"`
+	Error      string `json:"error,omitempty"`
 }
 
 // formatJSON outputs results as NDJSON (newline-delimited JSON)
@@ -242,19 +242,19 @@ func (f *DefaultFormatter) formatJSON(result *ssh.Result) error {
 		DurationMs: result.Duration.Milliseconds(),
 		Retries:    result.Retries,
 	}
-	
+
 	if result.Error != nil {
 		output.Error = result.Error.Error()
 	}
-	
+
 	jsonBytes, err := json.Marshal(output)
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	
+
 	if _, err := fmt.Fprintf(f.writer, "%s\n", jsonBytes); err != nil {
 		return fmt.Errorf("failed to write JSON: %w", err)
 	}
-	
+
 	return nil
 }

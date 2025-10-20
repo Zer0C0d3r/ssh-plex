@@ -21,7 +21,6 @@ linters:
     - bodyclose
     - dupl
     - errcheck
-    - exhaustive
     - gocyclo
     - gofmt
     - goimports

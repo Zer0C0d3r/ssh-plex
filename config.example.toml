@@ -1,0 +1,20 @@
+# ssh-plex Configuration Example (TOML format)
+# Copy this file to config.toml and customize as needed
+
+# Execution settings
+concurrency = "auto"          # Number of concurrent connections ("auto" or number)
+retries = 2                   # Maximum retry attempts per target
+timeout = "5m"                # Total execution timeout (0 for unlimited)
+cmd-timeout = "60s"           # Per-command timeout
+
+# Output settings
+output = "streamed"           # Output format: "streamed", "buffered", "json"
+quiet = false                 # Suppress non-error output
+
+# Logging settings
+log-level = "info"            # Log level: "info", "error"
+log-format = "text"           # Log format: "text", "json"
+
+# Default host settings (optional)
+# hosts = "user@host1,user@host2"
+# hostfile = "hosts.txt"

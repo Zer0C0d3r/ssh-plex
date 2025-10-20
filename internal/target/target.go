@@ -15,11 +15,16 @@ import (
 
 // Target represents a parsed host specification containing connection details
 type Target struct {
-	User         string // SSH username
-	Host         string // Hostname or IP address
-	Port         int    // SSH port number
-	IdentityFile string // Path to SSH private key file
-	Original     string // Original host specification string
+	User         string            // SSH username
+	Host         string            // Hostname or IP address
+	Port         int               // SSH port number
+	IdentityFile string            // Path to SSH private key file
+	Password     string            // SSH password (if using password auth)
+	Timeout      int               // Connection timeout in seconds
+	Retries      int               // Per-host retry count override
+	Tags         []string          // Host tags for grouping/filtering
+	Properties   map[string]string // Additional host properties
+	Original     string            // Original host specification string
 }
 
 // Parser defines the interface for parsing and validating host specifications
@@ -48,8 +53,10 @@ func NewParser() Parser {
 // ParseHostSpec parses a single host specification in the format "user@host:port?key=path"
 func ParseHostSpec(spec string) (Target, error) {
 	target := Target{
-		Original: spec,
-		Port:     22, // Default SSH port
+		Original:   spec,
+		Port:       22, // Default SSH port
+		Timeout:    30, // Default timeout in seconds
+		Properties: make(map[string]string),
 	}
 
 	// Handle empty spec
@@ -69,8 +76,40 @@ func ParseHostSpec(spec string) (Target, error) {
 			return target, fmt.Errorf("invalid query parameters: %w", err)
 		}
 
+		// Parse standard parameters
 		if key := values.Get("key"); key != "" {
 			target.IdentityFile = key
+		}
+		if password := values.Get("password"); password != "" {
+			target.Password = password
+		}
+		if timeoutStr := values.Get("timeout"); timeoutStr != "" {
+			if timeout, err := strconv.Atoi(timeoutStr); err == nil && timeout > 0 {
+				target.Timeout = timeout
+			}
+		}
+		if retriesStr := values.Get("retries"); retriesStr != "" {
+			if retries, err := strconv.Atoi(retriesStr); err == nil && retries >= 0 {
+				target.Retries = retries
+			}
+		}
+		if tagsStr := values.Get("tags"); tagsStr != "" {
+			target.Tags = strings.Split(tagsStr, ",")
+			// Trim whitespace from tags
+			for i, tag := range target.Tags {
+				target.Tags[i] = strings.TrimSpace(tag)
+			}
+		}
+		
+		// Parse custom properties (any parameter not in the standard set)
+		standardParams := map[string]bool{
+			"key": true, "password": true, "timeout": true, 
+			"retries": true, "tags": true,
+		}
+		for param, vals := range values {
+			if !standardParams[param] && len(vals) > 0 {
+				target.Properties[param] = vals[0]
+			}
 		}
 	}
 

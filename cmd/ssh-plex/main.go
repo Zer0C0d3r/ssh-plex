@@ -42,6 +42,8 @@ var (
 	dryRun      bool
 	logLevel    string
 	logFormat   string
+	showProgress bool
+	showStats    bool
 )
 
 func main() {
@@ -136,6 +138,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show execution plan without connecting")
 	rootCmd.Flags().StringVar(&logLevel, "log-level", "info", "Log level (info, error)")
 	rootCmd.Flags().StringVar(&logFormat, "log-format", "text", "Log format (json, text)")
+	rootCmd.Flags().BoolVar(&showProgress, "progress", false, "Show progress bar for long-running operations")
+	rootCmd.Flags().BoolVar(&showStats, "stats", false, "Show real-time statistics dashboard")
 
 	// Mark the command as requiring the -- separator
 	rootCmd.SetUsageTemplate(rootCmd.UsageTemplate() + `
@@ -177,6 +181,12 @@ func overrideConfigWithFlags(cmd *cobra.Command) error {
 	}
 	if cmd.Flags().Changed("log-format") {
 		cfg.LogFormat = logFormat
+	}
+	if cmd.Flags().Changed("progress") {
+		cfg.ShowProgress = showProgress
+	}
+	if cmd.Flags().Changed("stats") {
+		cfg.ShowStats = showStats
 	}
 
 	// Validate the final configuration

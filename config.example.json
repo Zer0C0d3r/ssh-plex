@@ -1,0 +1,10 @@
+{
+  "concurrency": "auto",
+  "retries": 2,
+  "timeout": "5m",
+  "cmd-timeout": "60s",
+  "output": "streamed",
+  "log-level": "info",
+  "log-format": "text",
+  "quiet": false
+}

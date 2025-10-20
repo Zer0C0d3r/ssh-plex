@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -291,13 +292,26 @@ func (c *SSHClient) getAuthMethods(target target.Target) ([]ssh.AuthMethod, erro
 		authMethods = append(authMethods, agentAuth)
 	}
 
-	// 2. Try identity file authentication if specified
+	// 2. Try password authentication if specified
+	if target.Password != "" {
+		authMethods = append(authMethods, ssh.Password(target.Password))
+	}
+
+	// 3. Try identity file authentication if specified
 	if target.IdentityFile != "" {
 		keyAuth, err := c.getKeyAuth(target.IdentityFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load identity file %s: %w", target.IdentityFile, err)
 		}
 		authMethods = append(authMethods, keyAuth)
+	}
+
+	// 4. Try default SSH keys if no specific auth method provided
+	if len(authMethods) == 1 && target.Password == "" && target.IdentityFile == "" {
+		// Only SSH agent is available, try to add default keys
+		if defaultKeyAuth := c.getDefaultKeyAuth(); defaultKeyAuth != nil {
+			authMethods = append(authMethods, defaultKeyAuth)
+		}
 	}
 
 	if len(authMethods) == 0 {
@@ -356,4 +370,24 @@ func (c *SSHClient) getHostKeyCallback() ssh.HostKeyCallback {
 		}
 		return nil
 	})
+}
+
+// getDefaultKeyAuth tries to load default SSH keys from standard locations
+func (c *SSHClient) getDefaultKeyAuth() ssh.AuthMethod {
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		defaultKeys := []string{
+			filepath.Join(homeDir, ".ssh", "id_rsa"),
+			filepath.Join(homeDir, ".ssh", "id_ed25519"),
+			filepath.Join(homeDir, ".ssh", "id_ecdsa"),
+		}
+		
+		for _, keyPath := range defaultKeys {
+			if _, err := os.Stat(keyPath); err == nil {
+				if keyAuth, err := c.getKeyAuth(keyPath); err == nil {
+					return keyAuth
+				}
+			}
+		}
+	}
+	return nil
 }

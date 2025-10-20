@@ -23,8 +23,10 @@ type Config struct {
 	Output      string        `mapstructure:"output"`      // Output format (streamed, buffered, json)
 	Quiet       bool          `mapstructure:"quiet"`       // Suppress non-error output
 	DryRun      bool          `mapstructure:"dry-run"`     // Show execution plan without connecting
-	LogLevel    string        `mapstructure:"log-level"`   // Log level (info, error)
-	LogFormat   string        `mapstructure:"log-format"`  // Log format (json, text)
+	LogLevel     string        `mapstructure:"log-level"`   // Log level (info, error)
+	LogFormat    string        `mapstructure:"log-format"`  // Log format (json, text)
+	ShowProgress bool          `mapstructure:"progress"`    // Show progress bar
+	ShowStats    bool          `mapstructure:"stats"`       // Show real-time statistics
 }
 
 // Manager defines the interface for configuration management
@@ -62,6 +64,8 @@ func (m *ViperManager) SetDefaults() {
 	m.v.SetDefault("dry-run", false)
 	m.v.SetDefault("log-level", "info")
 	m.v.SetDefault("log-format", "text")
+	m.v.SetDefault("progress", false)
+	m.v.SetDefault("stats", false)
 }
 
 // Load reads configuration from all sources with proper precedence
@@ -69,29 +73,45 @@ func (m *ViperManager) Load() (*Config, error) {
 	// Set defaults first
 	m.SetDefaults()
 
-	// Configure config file locations
+	// Configure config file locations and formats
 	m.v.SetConfigName("config")
-	m.v.SetConfigType("yaml")
-
-	// Add config paths in reverse precedence order (system first, user second)
-	m.v.AddConfigPath("/etc/ssh-plex/")
-
+	
+	// Add config paths in precedence order (current dir highest, system lowest)
+	m.v.AddConfigPath(".") // Current directory (highest precedence)
+	
 	// Add user config path
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		userConfigDir := filepath.Join(homeDir, ".config", "ssh-plex")
 		m.v.AddConfigPath(userConfigDir)
 	}
+	
+	// Add system config path (lowest precedence)
+	m.v.AddConfigPath("/etc/ssh-plex/")
 
 	// Set up environment variable handling
 	m.v.SetEnvPrefix("SSH_PLEX")
 	m.v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	m.v.AutomaticEnv()
 
-	// Try to read config file (ignore if not found)
-	if err := m.v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %w", err)
+	// Try to read config file with multiple formats
+	configFound := false
+	formats := []string{"yaml", "yml", "json", "toml"}
+	
+	for _, format := range formats {
+		m.v.SetConfigType(format)
+		if err := m.v.ReadInConfig(); err != nil {
+			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				return nil, fmt.Errorf("error reading %s config file: %w", format, err)
+			}
+		} else {
+			configFound = true
+			break
 		}
+	}
+	
+	// Log which config file was loaded (if any)
+	if configFound {
+		// Config file found and loaded successfully
 	}
 
 	// Unmarshal into Config struct

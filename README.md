@@ -2,11 +2,11 @@
 
 A high-reliability, production-grade CLI tool that enables parallel, fault-tolerant execution of shell commands across multiple remote hosts via SSH. Built for DevOps engineers, SREs, and system administrators who need to manage infrastructure at scale.
 
-[![CI/CD Pipeline](https://github.com/Zer0C0d3r/ssh-plex/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/Zer0C0d3r/ssh-plex/actions)
-[![CodeQL](https://github.com/Zer0C0d3r/ssh-plex/workflows/CodeQL%20Security%20Analysis/badge.svg)](https://github.com/Zer0C0d3r/ssh-plex/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Zer0C0d3r/ssh-plex)](https://goreportcard.com/report/github.com/Zer0C0d3r/ssh-plex)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/release/Zer0C0d3r/ssh-plex.svg)](https://github.com/Zer0C0d3r/ssh-plex/releases/latest)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/Zer0C0d3r/ssh-plex/build.yml?label=CI%2FCD&logo=github-actions&logoColor=white&style=for-the-badge)](https://github.com/Zer0C0d3r/ssh-plex/actions)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/Zer0C0d3r/ssh-plex/codeql.yml?label=CodeQL&logo=github&logoColor=white&style=for-the-badge)](https://github.com/Zer0C0d3r/ssh-plex/actions)
+[![Go Report](https://img.shields.io/badge/Go_Report-A%2B-success?logo=go&logoColor=white&style=for-the-badge)](https://goreportcard.com/report/github.com/Zer0C0d3r/ssh-plex)
+[![License](https://img.shields.io/badge/License-MIT-magenta?logo=opensourceinitiative&logoColor=white&style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/Zer0C0d3r/ssh-plex?logo=github&logoColor=white&style=for-the-badge)](https://github.com/Zer0C0d3r/ssh-plex/releases/latest)
 
 ## Features
 

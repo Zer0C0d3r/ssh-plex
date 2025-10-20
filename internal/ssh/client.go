@@ -380,7 +380,7 @@ func (c *SSHClient) getDefaultKeyAuth() ssh.AuthMethod {
 			filepath.Join(homeDir, ".ssh", "id_ed25519"),
 			filepath.Join(homeDir, ".ssh", "id_ecdsa"),
 		}
-		
+
 		for _, keyPath := range defaultKeys {
 			if _, err := os.Stat(keyPath); err == nil {
 				if keyAuth, err := c.getKeyAuth(keyPath); err == nil {

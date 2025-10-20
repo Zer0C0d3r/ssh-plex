@@ -36,13 +36,13 @@ func NewProgressTracker(total int, writer io.Writer, enabled bool) *ProgressTrac
 func (p *ProgressTracker) Update(success bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if success {
 		p.completed++
 	} else {
 		p.failed++
 	}
-	
+
 	if p.enabled {
 		p.draw()
 	}
@@ -52,7 +52,7 @@ func (p *ProgressTracker) Update(success bool) {
 func (p *ProgressTracker) Finish() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if p.enabled {
 		p.drawFinal()
 	}
@@ -66,15 +66,15 @@ func (p *ProgressTracker) draw() {
 		return
 	}
 	p.lastDraw = now
-	
+
 	total := p.completed + p.failed
 	if p.total == 0 {
 		return
 	}
-	
+
 	percentage := float64(total) / float64(p.total) * 100
 	elapsed := now.Sub(p.startTime)
-	
+
 	// Calculate ETA
 	var eta string
 	if total > 0 {
@@ -85,7 +85,7 @@ func (p *ProgressTracker) draw() {
 	} else {
 		eta = "ETA: calculating..."
 	}
-	
+
 	// Create progress bar
 	barWidth := 40
 	filled := int(float64(barWidth) * percentage / 100)
@@ -97,7 +97,7 @@ func (p *ProgressTracker) draw() {
 			bar += "░"
 		}
 	}
-	
+
 	// Format: [████████████░░░░░░░░] 75% (15/20) ✓12 ✗3 [2m30s] ETA: 50s
 	fmt.Fprintf(p.writer, "\r[%s] %.1f%% (%d/%d) ✓%d ✗%d [%v] %s",
 		bar, percentage, total, p.total, p.completed, p.failed,
@@ -108,14 +108,14 @@ func (p *ProgressTracker) draw() {
 func (p *ProgressTracker) drawFinal() {
 	total := p.completed + p.failed
 	elapsed := time.Since(p.startTime)
-	
+
 	fmt.Fprintf(p.writer, "\r")
 	// Clear the line
 	for i := 0; i < 100; i++ {
 		fmt.Fprintf(p.writer, " ")
 	}
 	fmt.Fprintf(p.writer, "\r")
-	
+
 	// Final summary
 	if p.failed == 0 {
 		fmt.Fprintf(p.writer, "✓ Completed %d/%d tasks successfully in %v\n",
@@ -130,6 +130,6 @@ func (p *ProgressTracker) drawFinal() {
 func (p *ProgressTracker) GetStats() (completed, failed, total int, elapsed time.Duration) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	return p.completed, p.failed, p.total, time.Since(p.startTime)
 }

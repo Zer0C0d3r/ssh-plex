@@ -14,15 +14,15 @@ import (
 
 // Config represents the application configuration structure
 type Config struct {
-	Hosts       string        `mapstructure:"hosts"`       // Comma-separated host specifications
-	HostFile    string        `mapstructure:"hostfile"`    // Path to file containing host specifications
-	Concurrency string        `mapstructure:"concurrency"` // Concurrency limit ("auto" or number)
-	Retries     int           `mapstructure:"retries"`     // Maximum retry attempts per target
-	Timeout     time.Duration `mapstructure:"timeout"`     // Total execution timeout
-	CmdTimeout  time.Duration `mapstructure:"cmd-timeout"` // Per-command timeout
-	Output      string        `mapstructure:"output"`      // Output format (streamed, buffered, json)
-	Quiet       bool          `mapstructure:"quiet"`       // Suppress non-error output
-	DryRun      bool          `mapstructure:"dry-run"`     // Show execution plan without connecting
+	Hosts        string        `mapstructure:"hosts"`       // Comma-separated host specifications
+	HostFile     string        `mapstructure:"hostfile"`    // Path to file containing host specifications
+	Concurrency  string        `mapstructure:"concurrency"` // Concurrency limit ("auto" or number)
+	Retries      int           `mapstructure:"retries"`     // Maximum retry attempts per target
+	Timeout      time.Duration `mapstructure:"timeout"`     // Total execution timeout
+	CmdTimeout   time.Duration `mapstructure:"cmd-timeout"` // Per-command timeout
+	Output       string        `mapstructure:"output"`      // Output format (streamed, buffered, json)
+	Quiet        bool          `mapstructure:"quiet"`       // Suppress non-error output
+	DryRun       bool          `mapstructure:"dry-run"`     // Show execution plan without connecting
 	LogLevel     string        `mapstructure:"log-level"`   // Log level (info, error)
 	LogFormat    string        `mapstructure:"log-format"`  // Log format (json, text)
 	ShowProgress bool          `mapstructure:"progress"`    // Show progress bar
@@ -75,16 +75,16 @@ func (m *ViperManager) Load() (*Config, error) {
 
 	// Configure config file locations and formats
 	m.v.SetConfigName("config")
-	
+
 	// Add config paths in precedence order (current dir highest, system lowest)
 	m.v.AddConfigPath(".") // Current directory (highest precedence)
-	
+
 	// Add user config path
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		userConfigDir := filepath.Join(homeDir, ".config", "ssh-plex")
 		m.v.AddConfigPath(userConfigDir)
 	}
-	
+
 	// Add system config path (lowest precedence)
 	m.v.AddConfigPath("/etc/ssh-plex/")
 
@@ -94,9 +94,8 @@ func (m *ViperManager) Load() (*Config, error) {
 	m.v.AutomaticEnv()
 
 	// Try to read config file with multiple formats
-	configFound := false
 	formats := []string{"yaml", "yml", "json", "toml"}
-	
+
 	for _, format := range formats {
 		m.v.SetConfigType(format)
 		if err := m.v.ReadInConfig(); err != nil {
@@ -104,14 +103,9 @@ func (m *ViperManager) Load() (*Config, error) {
 				return nil, fmt.Errorf("error reading %s config file: %w", format, err)
 			}
 		} else {
-			configFound = true
+			// Config file found and loaded successfully
 			break
 		}
-	}
-	
-	// Log which config file was loaded (if any)
-	if configFound {
-		// Config file found and loaded successfully
 	}
 
 	// Unmarshal into Config struct

@@ -31,17 +31,17 @@ var (
 	cfg *config.Config
 
 	// CLI flags
-	hosts       string
-	hostFile    string
-	concurrency string
-	retries     int
-	timeout     time.Duration
-	cmdTimeout  time.Duration
-	outputMode  string
-	quiet       bool
-	dryRun      bool
-	logLevel    string
-	logFormat   string
+	hosts        string
+	hostFile     string
+	concurrency  string
+	retries      int
+	timeout      time.Duration
+	cmdTimeout   time.Duration
+	outputMode   string
+	quiet        bool
+	dryRun       bool
+	logLevel     string
+	logFormat    string
 	showProgress bool
 	showStats    bool
 )

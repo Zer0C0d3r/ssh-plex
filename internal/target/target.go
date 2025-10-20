@@ -100,10 +100,10 @@ func ParseHostSpec(spec string) (Target, error) {
 				target.Tags[i] = strings.TrimSpace(tag)
 			}
 		}
-		
+
 		// Parse custom properties (any parameter not in the standard set)
 		standardParams := map[string]bool{
-			"key": true, "password": true, "timeout": true, 
+			"key": true, "password": true, "timeout": true,
 			"retries": true, "tags": true,
 		}
 		for param, vals := range values {

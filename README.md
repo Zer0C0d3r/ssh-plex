@@ -117,9 +117,14 @@ user@hostname
 user@hostname:port
 hostname  # Uses current user
 
-# With custom SSH key
+# With authentication options
 user@hostname?key=/path/to/key.pem
-user@hostname:2222?key=/path/to/key.pem
+user@hostname?password=secretpass
+user@hostname:2222?key=/path/to/key.pem&timeout=60
+
+# With advanced parameters
+user@hostname?tags=web,prod&retries=3&timeout=30
+user@hostname?key=/path/to/key.pem&env=production&role=webserver
 
 # IPv6 support
 user@[2001:db8::1]:22
@@ -127,9 +132,18 @@ user@[2001:db8::1]?key=/path/to/key.pem
 ```
 
 **Authentication Priority:**
-1. Custom SSH key (if specified with `?key=path`)
-2. SSH agent (if `SSH_AUTH_SOCK` is available)
-3. Default SSH keys (`~/.ssh/id_rsa`, `~/.ssh/id_ed25519`, etc.)
+1. SSH agent (if `SSH_AUTH_SOCK` is available)
+2. Password authentication (if specified with `?password=pass`)
+3. Custom SSH key (if specified with `?key=path`)
+4. Default SSH keys (`~/.ssh/id_rsa`, `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`)
+
+**Advanced Query Parameters:**
+- `key=path` - Custom SSH private key file
+- `password=pass` - SSH password authentication
+- `timeout=seconds` - Per-host connection timeout
+- `retries=count` - Per-host retry attempts override
+- `tags=tag1,tag2` - Host tags for grouping/filtering
+- Custom properties for extensibility (e.g., `env=prod`, `role=web`)
 
 ### Configuration Methods
 
@@ -137,7 +151,7 @@ ssh-plex supports multiple configuration methods with the following precedence (
 
 1. **Command-line flags**
 2. **Environment variables** (prefixed with `SSH_PLEX_`)
-3. **Configuration files** (`config.yaml` only)
+3. **Configuration files** (YAML, JSON, TOML formats)
 
 #### Environment Variables
 
@@ -151,11 +165,12 @@ export SSH_PLEX_LOG_LEVEL=info
 
 #### Configuration File Example
 
-Configuration files are searched in the following locations:
-- `/etc/ssh-plex/config.yaml` (system-wide)
-- `~/.config/ssh-plex/config.yaml` (user-specific)
+Configuration files are searched in the following locations (highest to lowest precedence):
+- `./config.{yaml,yml,json,toml}` (current directory)
+- `~/.config/ssh-plex/config.{yaml,yml,json,toml}` (user-specific)
+- `/etc/ssh-plex/config.{yaml,yml,json,toml}` (system-wide)
 
-**Note**: Currently only YAML format is supported. JSON and TOML support is planned for v1.1.
+**Supported formats**: YAML, JSON, TOML
 
 ```yaml
 # config.yaml
@@ -186,6 +201,8 @@ quiet: false
 | `--dry-run` | `SSH_PLEX_DRY_RUN` | `false` | Show execution plan without connecting |
 | `--log-level` | `SSH_PLEX_LOG_LEVEL` | `info` | Log level (`info`, `error`) |
 | `--log-format` | `SSH_PLEX_LOG_FORMAT` | `text` | Log format (`text`, `json`) |
+| `--progress` | `SSH_PLEX_PROGRESS` | `false` | Show progress bar for long-running operations |
+| `--stats` | `SSH_PLEX_STATS` | `false` | Show real-time statistics dashboard |
 
 ### Commands
 
@@ -267,10 +284,9 @@ Machine-readable output for automation:
 
 ## Current Limitations
 
-- **Configuration Files**: Only YAML format supported (JSON/TOML planned for v1.1)
-- **Config Locations**: Only system (`/etc/ssh-plex/`) and user (`~/.config/ssh-plex/`) directories
-- **Host Parameters**: Only `key=path` parameter supported in host specifications
-- **Authentication**: No password authentication (SSH keys and agent only)
+- **Multi-factor Authentication**: Not yet implemented (planned for future release)
+- **Export Formats**: CSV/Excel export not yet available
+- **Host Key Verification**: Uses fallback for unknown hosts (with security warnings)
 
 ## Troubleshooting
 
@@ -367,20 +383,22 @@ ssh-plex --log-level info --log-format json --hosts "..." -- "command"
 
 ## Roadmap
 
-### Version 1.1.0
-- [ ] **Enhanced Configuration**
-  - Support for JSON and TOML config files (currently YAML only)
-  - Config file support in current directory
-  - Advanced query parameters in host specifications
-- [ ] **Enhanced Authentication**
+### Version 1.1.0 (Completed)
+- [x] **Enhanced Configuration**
+  - Support for JSON and TOML config files alongside YAML
+  - Config file support in current directory (highest precedence)
+  - Advanced query parameters in host specifications (password, timeout, retries, tags, custom properties)
+- [x] **Enhanced Authentication**
   - Password authentication option
+  - Fallback to default SSH keys
+- [x] **Improved Output**
+  - Progress bars for long-running operations (--progress flag)
+  - Real-time statistics dashboard (--stats flag)
+- [ ] **Future Enhancements**
   - Multi-factor authentication support
-- [ ] **Improved Output**
-  - Progress bars for long-running operations
-  - Real-time statistics dashboard
   - Export results to CSV/Excel
 
-### Version 1.2.0
+### Version 1.2.0 (Next Release)
 - [ ] **Advanced Features**
   - Host grouping and tagging
   - Conditional execution based on host properties

@@ -95,6 +95,35 @@ ssh-plex --hosts "user@host1?key=/path/to/key.pem,user@host2:2222" \
          --log-level error \
          --log-format json \
          -- "tail -n 100 /var/log/app.log"
+
+# Progress bars and statistics (v1.1.0)
+ssh-plex --hosts "user@host1,user@host2,user@host3" \
+         --progress \
+         --stats \
+         -- "uptime"
+
+# Host filtering by tags (v1.2.0)
+ssh-plex --hosts "user@web1?tags=web,prod,user@db1?tags=database,prod" \
+         --filter "tag:web,prod" \
+         -- "systemctl status nginx"
+
+# Group execution by environment (v1.2.0)
+ssh-plex --hosts "user@host1?env=prod,user@host2?env=staging" \
+         --group-by env \
+         -- "df -h"
+
+# Using predefined templates (v1.2.0)
+ssh-plex --hosts "user@host1?tags=docker,user@host2?tags=docker" \
+         --template docker-status
+
+# Ansible inventory integration (v1.2.0)
+ssh-plex --inventory inventory.yml \
+         --filter "tag:webservers" \
+         --template system-info
+
+# Inline template with conditional logic (v1.2.0)
+ssh-plex --hosts "user@host1?service=nginx,user@host2?service=apache" \
+         --template "{{if .Properties.service}}systemctl status {{.Properties.service}}{{else}}echo 'No service defined'{{end}}"
 ```
 
 ## Usage Guide
@@ -203,6 +232,10 @@ quiet: false
 | `--log-format` | `SSH_PLEX_LOG_FORMAT` | `text` | Log format (`text`, `json`) |
 | `--progress` | `SSH_PLEX_PROGRESS` | `false` | Show progress bar for long-running operations |
 | `--stats` | `SSH_PLEX_STATS` | `false` | Show real-time statistics dashboard |
+| `--filter` | `SSH_PLEX_FILTER` | - | Filter hosts using expressions (v1.2.0) |
+| `--group-by` | `SSH_PLEX_GROUP_BY` | - | Group execution by property or tag (v1.2.0) |
+| `--template` | `SSH_PLEX_TEMPLATE` | - | Use predefined or inline template (v1.2.0) |
+| `--inventory` | `SSH_PLEX_INVENTORY` | - | Load hosts from Ansible inventory (v1.2.0) |
 
 ### Commands
 
@@ -394,19 +427,28 @@ ssh-plex --log-level info --log-format json --hosts "..." -- "command"
 - [x] **Improved Output**
   - Progress bars for long-running operations (--progress flag)
   - Real-time statistics dashboard (--stats flag)
-- [ ] **Future Enhancements**
-  - Multi-factor authentication support
-  - Export results to CSV/Excel
 
-### Version 1.2.0 (Next Release)
-- [ ] **Advanced Features**
-  - Host grouping and tagging
-  - Conditional execution based on host properties
-  - Template support for complex commands
-- [ ] **Integration**
-  - Ansible inventory support
+### Version 1.2.0 (Completed)
+- [x] **Advanced Features**
+  - Host grouping and tagging with --group-by flag
+  - Host filtering with --filter expressions (tag:web,prod property:env=production)
+  - Template support for complex commands with --template flag
+  - Predefined templates (system-info, docker-status, service-check, log-tail, deployment-check)
+- [x] **Integration**
+  - Ansible inventory support with --inventory flag
+  - YAML and JSON inventory file formats
+  - Host property and tag inheritance from inventory
+
+### Version 1.3.0 (Next Release)
+- [ ] **Cloud Integration**
   - Kubernetes node targeting
-  - Cloud provider integration (AWS, GCP, Azure)
+  - AWS EC2 instance discovery
+  - GCP Compute Engine integration
+  - Azure VM integration
+- [ ] **Advanced Templates**
+  - Template library management
+  - Custom template functions
+  - Conditional execution templates
 
 ### Version 1.3.0
 - [ ] **Enterprise Features**
@@ -492,7 +534,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Platforms**: Linux, macOS, Windows
 - **Architectures**: amd64, arm64
 - **Dependencies**: Minimal (only essential Go modules)
-- **Binary Size**: ~4MB (statically linked)
+- **Binary Size**: ~8MB (statically linked)
 
 ---
 

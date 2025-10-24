@@ -14,9 +14,14 @@ import (
 	"ssh-plex/internal/config"
 	"ssh-plex/internal/errors"
 	"ssh-plex/internal/executor"
+	"ssh-plex/internal/filter"
+	"ssh-plex/internal/inventory"
 	"ssh-plex/internal/logging"
 	"ssh-plex/internal/output"
+	"ssh-plex/internal/progress"
+	"ssh-plex/internal/stats"
 	"ssh-plex/internal/target"
+	"ssh-plex/internal/template"
 
 	"github.com/spf13/cobra"
 )
@@ -44,6 +49,12 @@ var (
 	logFormat    string
 	showProgress bool
 	showStats    bool
+
+	// v1.2.0 flags
+	filterExpr    string
+	groupBy       string
+	templateName  string
+	inventoryFile string
 )
 
 func main() {
@@ -141,6 +152,12 @@ func init() {
 	rootCmd.Flags().BoolVar(&showProgress, "progress", false, "Show progress bar for long-running operations")
 	rootCmd.Flags().BoolVar(&showStats, "stats", false, "Show real-time statistics dashboard")
 
+	// v1.2.0 flags
+	rootCmd.Flags().StringVar(&filterExpr, "filter", "", "Filter hosts using expression (e.g., 'tag:web,prod property:env=production')")
+	rootCmd.Flags().StringVar(&groupBy, "group-by", "", "Group execution by property or tag")
+	rootCmd.Flags().StringVar(&templateName, "template", "", "Use predefined template or inline template syntax")
+	rootCmd.Flags().StringVar(&inventoryFile, "inventory", "", "Load hosts from Ansible inventory file")
+
 	// Mark the command as requiring the -- separator
 	rootCmd.SetUsageTemplate(rootCmd.UsageTemplate() + `
 Note: Command to execute must be specified after '--' separator.
@@ -202,6 +219,34 @@ func executeCommand(command string) error {
 	return executeCommandInternal(command, os.Stdout)
 }
 
+// processCommandTemplate processes command templates (v1.2.0 feature)
+func processCommandTemplate(command string, target target.Target) (string, error) {
+	// Check if template name is specified
+	if templateName != "" {
+		engine := template.NewTemplateEngine()
+		if err := engine.LoadPredefinedTemplates(); err != nil {
+			return "", fmt.Errorf("failed to load predefined templates: %w", err)
+		}
+
+		// Check if it's a predefined template
+		if _, exists := template.PredefinedTemplates[templateName]; exists {
+			return engine.ExecuteTemplate(templateName, target)
+		}
+
+		// Treat as inline template
+		return engine.ExecuteInlineTemplate(templateName, target)
+	}
+
+	// Check if command contains template syntax
+	if template.IsTemplate(command) {
+		engine := template.NewTemplateEngine()
+		return engine.ExecuteInlineTemplate(command, target)
+	}
+
+	// Return command as-is
+	return command, nil
+}
+
 func executeCommandInternal(command string, writer io.Writer) error {
 	// Set up logging with proper error handling
 	logger := logging.NewLoggerFromConfig(cfg.LogLevel, cfg.LogFormat, cfg.Quiet)
@@ -218,7 +263,20 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	var err error
 	var source string
 
-	if cfg.Hosts != "" {
+	// Check for inventory file first (v1.2.0 feature)
+	if inventoryFile != "" {
+		source = fmt.Sprintf("inventory file: %s", inventoryFile)
+		inv, err := inventory.LoadInventoryFromFile(inventoryFile)
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return &SetupError{Message: fmt.Sprintf("failed to load inventory: %v", err)}
+		}
+		targets, err = inv.LoadTargets()
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return &SetupError{Message: fmt.Sprintf("failed to parse inventory targets: %v", err)}
+		}
+	} else if cfg.Hosts != "" {
 		source = "CLI hosts parameter"
 		targets, err = parser.ParseHosts(cfg.Hosts)
 		if err != nil {
@@ -241,6 +299,17 @@ func executeCommandInternal(command string, writer io.Writer) error {
 		}
 	}
 
+	// Apply filters if specified (v1.2.0 feature)
+	if filterExpr != "" {
+		filters, err := filter.ParseFilterExpression(filterExpr)
+		if err != nil {
+			return &SetupError{Message: fmt.Sprintf("failed to parse filter expression: %v", err)}
+		}
+		originalCount := len(targets)
+		targets = filter.FilterTargets(targets, filters...)
+		logger.Info("Applied filters", "original_count", originalCount, "filtered_count", len(targets), "filter", filterExpr)
+	}
+
 	if len(targets) == 0 {
 		logger.LogTargetParsingError(source, fmt.Errorf("no valid targets found"))
 		return &SetupError{Message: "no valid targets found"}
@@ -248,6 +317,11 @@ func executeCommandInternal(command string, writer io.Writer) error {
 
 	// Log successful target parsing
 	logger.LogTargetParsing(source, len(targets))
+
+	// Handle grouping if specified (v1.2.0 feature)
+	if groupBy != "" {
+		return executeWithGrouping(targets, command, logger, writer)
+	}
 
 	// Handle dry-run mode
 	if cfg.DryRun {
@@ -321,6 +395,20 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	}()
 	defer signal.Stop(sigChan)
 
+	// Initialize progress and stats tracking
+	var progressTracker *progress.ProgressTracker
+	var statsTracker *stats.StatsTracker
+
+	if cfg.ShowProgress {
+		progressTracker = progress.NewProgressTracker(len(targets), writer, true)
+	}
+
+	if cfg.ShowStats {
+		statsTracker = stats.NewStatsTracker(len(targets), writer, true)
+		statsTracker.Start()
+		defer statsTracker.Stop()
+	}
+
 	// Execute commands with comprehensive error handling
 	results := exec.Execute(ctx, targets, command)
 	if results == nil {
@@ -341,6 +429,19 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	// Process results with proper error classification
 	for result := range results {
 		totalTargets++
+
+		// Update progress and stats tracking
+		success := result.Error == nil && result.ExitCode == 0
+
+		if progressTracker != nil {
+			progressTracker.Update(success)
+		}
+
+		if statsTracker != nil {
+			// Calculate bytes transferred (estimate based on output length)
+			bytesTransferred := int64(len(result.Stdout) + len(result.Stderr))
+			statsTracker.UpdateHostCompleted(success, result.Retries, bytesTransferred)
+		}
 
 		// Format output with error handling - never crash on formatting errors
 		if err := formatter.Format(result); err != nil {
@@ -385,6 +486,11 @@ func executeCommandInternal(command string, writer io.Writer) error {
 		}
 	}
 
+	// Finalize progress tracking
+	if progressTracker != nil {
+		progressTracker.Finish()
+	}
+
 	// Finalize output with error handling
 	if err := formatter.Finalize(); err != nil {
 		logger.Error("Failed to finalize output", "error", err)
@@ -410,6 +516,125 @@ func executeCommandInternal(command string, writer io.Writer) error {
 			Message: fmt.Sprintf("execution failed: %d/%d targets failed (%d errors, %d non-zero exits) - %s",
 				totalErrors+failureCount, totalTargets, totalErrors, failureCount, errorCollector.Summary()),
 		}
+	}
+
+	return nil
+}
+
+// executeWithGrouping executes commands with host grouping (v1.2.0 feature)
+func executeWithGrouping(targets []target.Target, command string, logger *logging.Logger, writer io.Writer) error {
+	groups := filter.GroupTargets(targets, groupBy)
+
+	fmt.Fprintf(writer, "Executing on %d groups (grouped by %s):\n", len(groups), groupBy)
+
+	var hasFailures bool
+	for groupName, groupTargets := range groups {
+		fmt.Fprintf(writer, "\n=== Group: %s (%d hosts) ===\n", groupName, len(groupTargets))
+
+		// Execute on this group
+		err := executeSingleGroup(groupTargets, command, logger, writer)
+		if err != nil {
+			hasFailures = true
+			logger.Error("Group execution failed", "group", groupName, "error", err)
+		}
+	}
+
+	if hasFailures {
+		return &ExecutionError{Message: "one or more groups failed"}
+	}
+
+	return nil
+}
+
+// executeSingleGroup executes commands on a single group of targets
+func executeSingleGroup(targets []target.Target, command string, logger *logging.Logger, writer io.Writer) error {
+	// Set up output formatter
+	var outputMode output.OutputMode
+	switch cfg.Output {
+	case "streamed":
+		outputMode = output.StreamedMode
+	case "buffered":
+		outputMode = output.BufferedMode
+	case "json":
+		outputMode = output.JSONMode
+	default:
+		outputMode = output.StreamedMode
+	}
+
+	formatter := output.NewFormatter(outputMode, writer)
+	if formatter == nil {
+		return &SetupError{Message: "failed to initialize output formatter"}
+	}
+
+	// Calculate concurrency
+	concurrencyValue, err := calculateConcurrency(cfg.Concurrency, len(targets))
+	if err != nil {
+		return &SetupError{Message: fmt.Sprintf("failed to calculate concurrency: %v", err)}
+	}
+
+	// Create executor
+	exec := executor.NewExecutorWithLogger(logger)
+	if exec == nil {
+		return &SetupError{Message: "failed to initialize executor"}
+	}
+
+	// Set up executor configuration
+	executorConfig := executor.ExecutorConfig{
+		Concurrency:  concurrencyValue,
+		Retries:      cfg.Retries,
+		CmdTimeout:   cfg.CmdTimeout,
+		TotalTimeout: cfg.Timeout,
+	}
+	exec.SetConfig(executorConfig)
+
+	// Set up context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if cfg.Timeout > 0 {
+		var timeoutCancel context.CancelFunc
+		ctx, timeoutCancel = context.WithTimeout(ctx, cfg.Timeout)
+		defer timeoutCancel()
+	}
+
+	// Process each target's command through template engine
+	processedTargets := make([]target.Target, len(targets))
+	processedCommands := make([]string, len(targets))
+
+	for i, target := range targets {
+		processedCmd, err := processCommandTemplate(command, target)
+		if err != nil {
+			logger.Error("Template processing failed", "host", target.Host, "error", err)
+			return &SetupError{Message: fmt.Sprintf("template processing failed for %s: %v", target.Host, err)}
+		}
+		processedTargets[i] = target
+		processedCommands[i] = processedCmd
+	}
+
+	// Execute commands
+	results := exec.Execute(ctx, processedTargets, command)
+	if results == nil {
+		return &SetupError{Message: "executor failed to start"}
+	}
+
+	// Process results
+	var hasFailures bool
+	for result := range results {
+		if err := formatter.Format(result); err != nil {
+			logger.Error("Failed to format output", "error", err, "host", result.Target.Host)
+		}
+
+		if result.Error != nil || result.ExitCode != 0 {
+			hasFailures = true
+		}
+	}
+
+	if err := formatter.Finalize(); err != nil {
+		logger.Error("Failed to finalize output", "error", err)
+	}
+
+	if hasFailures {
+		return &ExecutionError{Message: "one or more targets in group failed"}
 	}
 
 	return nil

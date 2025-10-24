@@ -207,6 +207,8 @@ func (m *ViperManager) LoadFromEnv() (*Config, error) {
 		"dry-run":     "SSH_PLEX_DRY_RUN",
 		"log-level":   "SSH_PLEX_LOG_LEVEL",
 		"log-format":  "SSH_PLEX_LOG_FORMAT",
+		"progress":    "SSH_PLEX_PROGRESS",
+		"stats":       "SSH_PLEX_STATS",
 	}
 
 	for key, envVar := range envVars {
@@ -244,7 +246,7 @@ func (m *ViperManager) setConfigValue(key, value string) error {
 		} else {
 			m.v.Set(key, duration)
 		}
-	case "quiet", "dry-run":
+	case "quiet", "dry-run", "progress", "stats":
 		if boolVal, err := strconv.ParseBool(value); err != nil {
 			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
 		} else {
@@ -271,5 +273,7 @@ func GetEnvVarNames() []string {
 		"SSH_PLEX_DRY_RUN",
 		"SSH_PLEX_LOG_LEVEL",
 		"SSH_PLEX_LOG_FORMAT",
+		"SSH_PLEX_PROGRESS",
+		"SSH_PLEX_STATS",
 	}
 }

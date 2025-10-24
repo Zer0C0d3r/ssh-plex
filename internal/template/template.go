@@ -8,6 +8,9 @@ import (
 	"text/template"
 
 	"ssh-plex/internal/target"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TemplateEngine provides command templating functionality
@@ -93,7 +96,7 @@ func templateFuncs() template.FuncMap {
 		// String functions
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
-		"title":     strings.Title,
+		"title":     cases.Title(language.English).String,
 		"trim":      strings.TrimSpace,
 		"replace":   strings.ReplaceAll,
 		"contains":  strings.Contains,

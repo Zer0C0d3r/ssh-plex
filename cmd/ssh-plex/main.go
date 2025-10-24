@@ -219,6 +219,71 @@ func executeCommand(command string) error {
 	return executeCommandInternal(command, os.Stdout)
 }
 
+// parseAndFilterTargets parses targets from various sources and applies filters
+func parseAndFilterTargets(logger *logging.Logger) ([]target.Target, error) {
+	parser := target.NewParser()
+	var targets []target.Target
+	var err error
+	var source string
+
+	// Check for inventory file first (v1.2.0 feature)
+	if inventoryFile != "" {
+		source = fmt.Sprintf("inventory file: %s", inventoryFile)
+		inv, invErr := inventory.LoadInventoryFromFile(inventoryFile)
+		if invErr != nil {
+			logger.LogTargetParsingError(source, invErr)
+			return nil, &SetupError{Message: fmt.Sprintf("failed to load inventory: %v", invErr)}
+		}
+		targets, err = inv.LoadTargets()
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return nil, &SetupError{Message: fmt.Sprintf("failed to parse inventory targets: %v", err)}
+		}
+	} else if cfg.Hosts != "" {
+		source = "CLI hosts parameter"
+		targets, err = parser.ParseHosts(cfg.Hosts)
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return nil, &SetupError{Message: fmt.Sprintf("failed to parse hosts: %v", err)}
+		}
+	} else if cfg.HostFile != "" {
+		source = fmt.Sprintf("host file: %s", cfg.HostFile)
+		targets, err = parser.ParseHostFile(cfg.HostFile)
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return nil, &SetupError{Message: fmt.Sprintf("failed to parse host file: %v", err)}
+		}
+	} else {
+		source = "stdin"
+		targets, err = parser.ParseStdin()
+		if err != nil {
+			logger.LogTargetParsingError(source, err)
+			return nil, &SetupError{Message: fmt.Sprintf("failed to parse hosts from stdin: %v", err)}
+		}
+	}
+
+	// Apply filters if specified (v1.2.0 feature)
+	if filterExpr != "" {
+		filters, filterErr := filter.ParseFilterExpression(filterExpr)
+		if filterErr != nil {
+			return nil, &SetupError{Message: fmt.Sprintf("failed to parse filter expression: %v", filterErr)}
+		}
+		originalCount := len(targets)
+		targets = filter.FilterTargets(targets, filters...)
+		logger.Info("Applied filters", "original_count", originalCount, "filtered_count", len(targets), "filter", filterExpr)
+	}
+
+	if len(targets) == 0 {
+		logger.LogTargetParsingError(source, fmt.Errorf("no valid targets found"))
+		return nil, &SetupError{Message: "no valid targets found"}
+	}
+
+	// Log successful target parsing
+	logger.LogTargetParsing(source, len(targets))
+
+	return targets, nil
+}
+
 // processCommandTemplate processes command templates (v1.2.0 feature)
 func processCommandTemplate(command string, target target.Target) (string, error) {
 	// Check if template name is specified
@@ -257,66 +322,11 @@ func executeCommandInternal(command string, writer io.Writer) error {
 	// Log configuration loading
 	logger.LogConfigLoad("CLI flags and configuration files")
 
-	// Parse targets with comprehensive error handling
-	parser := target.NewParser()
-	var targets []target.Target
-	var err error
-	var source string
-
-	// Check for inventory file first (v1.2.0 feature)
-	if inventoryFile != "" {
-		source = fmt.Sprintf("inventory file: %s", inventoryFile)
-		inv, err := inventory.LoadInventoryFromFile(inventoryFile)
-		if err != nil {
-			logger.LogTargetParsingError(source, err)
-			return &SetupError{Message: fmt.Sprintf("failed to load inventory: %v", err)}
-		}
-		targets, err = inv.LoadTargets()
-		if err != nil {
-			logger.LogTargetParsingError(source, err)
-			return &SetupError{Message: fmt.Sprintf("failed to parse inventory targets: %v", err)}
-		}
-	} else if cfg.Hosts != "" {
-		source = "CLI hosts parameter"
-		targets, err = parser.ParseHosts(cfg.Hosts)
-		if err != nil {
-			logger.LogTargetParsingError(source, err)
-			return &SetupError{Message: fmt.Sprintf("failed to parse hosts: %v", err)}
-		}
-	} else if cfg.HostFile != "" {
-		source = fmt.Sprintf("host file: %s", cfg.HostFile)
-		targets, err = parser.ParseHostFile(cfg.HostFile)
-		if err != nil {
-			logger.LogTargetParsingError(source, err)
-			return &SetupError{Message: fmt.Sprintf("failed to parse host file: %v", err)}
-		}
-	} else {
-		source = "stdin"
-		targets, err = parser.ParseStdin()
-		if err != nil {
-			logger.LogTargetParsingError(source, err)
-			return &SetupError{Message: fmt.Sprintf("failed to parse hosts from stdin: %v", err)}
-		}
+	// Parse and filter targets
+	targets, err := parseAndFilterTargets(logger)
+	if err != nil {
+		return err
 	}
-
-	// Apply filters if specified (v1.2.0 feature)
-	if filterExpr != "" {
-		filters, err := filter.ParseFilterExpression(filterExpr)
-		if err != nil {
-			return &SetupError{Message: fmt.Sprintf("failed to parse filter expression: %v", err)}
-		}
-		originalCount := len(targets)
-		targets = filter.FilterTargets(targets, filters...)
-		logger.Info("Applied filters", "original_count", originalCount, "filtered_count", len(targets), "filter", filterExpr)
-	}
-
-	if len(targets) == 0 {
-		logger.LogTargetParsingError(source, fmt.Errorf("no valid targets found"))
-		return &SetupError{Message: "no valid targets found"}
-	}
-
-	// Log successful target parsing
-	logger.LogTargetParsing(source, len(targets))
 
 	// Handle grouping if specified (v1.2.0 feature)
 	if groupBy != "" {
